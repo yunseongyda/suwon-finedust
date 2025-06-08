@@ -1,6 +1,6 @@
 import requests
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 import config
 
 def latlon_to_xy(lat, lon):
@@ -99,19 +99,27 @@ class DataCollector:
       print("[ERROR]: ",e)
 
     df = pd.DataFrame(air_quality_data)
-    df['timestamp'] = pd.to_datetime(df['timestamp'])
+    df['timestamp'] = pd.to_datetime(df['timestamp']).dt.floor('H')
 
     grouped = df.groupby(['district', 'timestamp']).agg({
       'pm10' : 'mean',
       'pm25' : 'mean'
     }).reset_index()
 
+    print("\n[DEBUG] Final Air DataFrame: ")
+    print(grouped)
+
     return grouped
   
-  def get_weather_data(self):
+  def get_weather_data(self, air_timestamp=None):
     """기상청 단기예보 API를 통해 날씨 데이터 수집"""
     weather_data = []
     now = datetime.now()
+
+    if air_timestamp and (now - air_timestamp) > timedelta(minutes=30):
+      print('[INFO] 기상청 시간 보정: {now} -> {air_timestamp}')
+      now = air_timestamp
+
     base_date = now.strftime('%Y%m%d')
     # 기상청 실황 API는 10분 단위로 데이터 제공 → 가장 가까운 시각으로 내림 처리 (17 -> 10)
     minute = now.minute
@@ -120,5 +128,69 @@ class DataCollector:
 
     # lat: 위도, lon: 경도
     for dist, (lat, lon) in config.DISTRICT_COORDINATES.items():
-      # 기상청은 위경도 안 쓰고 이상한 격자 씀.
-      nx, ny = latlon_to_xy(lat, lon)
+      try:
+        # 기상청은 위경도 안 쓰고 이상한 격자 씀.
+        nx, ny = latlon_to_xy(lat, lon)
+
+        url = f"{self.weather_base_url}/getUltraSrtNcst"
+        params = {
+          'serviceKey' : config.WEATHER_API_KEY,
+          'numOfRows' : '100',
+          'pageNo' : '1',
+          'dataType' : 'JSON',
+          'base_date' : base_date,
+          'base_time' : base_time,
+          'nx' : nx,
+          'ny' : ny
+        }
+
+        res = requests.get(url, params=params)
+        data = res.json()
+        
+        if 'response' in data and 'body' in data['response']:
+          items = data['response']['body']['items']['item']
+          info = {'district' : dist, 'timestamp' : now.strftime('%Y-%m-%d %H:%M')}
+        
+          # 기온(T1H), 습도(REH), 풍속(WSD) 뽑기
+          for item in items:
+            if item['category'] == 'T1H':     # 기온
+              info['temperature'] = float(item['obsrValue'])
+            elif item['category'] == 'REH':   # 습도
+              info['humidity'] = float(item['obsrValue'])
+            elif item['category'] == 'WSD':   # 풍속
+              info['wind_speed'] = float(item['obsrValue'])
+
+          weather_data.append(info)
+
+      except Exception as e:
+        print(f"[ERROR] {dist} 데이터 수집 실패: {e}")
+      
+    df = pd.DataFrame(weather_data)
+    df['timestamp'] = pd.to_datetime(df['timestamp']).dt.floor('H')
+    print("\n[DEBUG] Final weather DataFrame: ")
+    print(df)
+
+    return df
+  
+  def collect_and_merge_data(self):
+    """현재 시점의 미세먼지 + 날씨 데이터를 수집하고 병합"""
+    
+    print('[INFO] 미세먼지 데이터 수집중...')
+    air_df = self.get_air_quality_data()
+    air_timestamp = air_df['timestamp'].max()
+    
+    print('[INFO] 날씨 데이터 수집중...')
+    weather_df = self.get_weather_data(air_timestamp=air_timestamp)
+
+    print('[INFO] 두 데이터 병합중...')
+    merged_df = pd.merge(
+      air_df,
+      weather_df,
+      on=['district', 'timestamp'],
+      how='inner'
+    )
+
+    print('[INFO] 병합된 데이터: ')
+    print(merged_df)
+    
+    return merged_df
