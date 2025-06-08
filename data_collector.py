@@ -3,12 +3,52 @@ import pandas as pd
 from datetime import datetime
 import config
 
+def latlon_to_xy(lat, lon):
+    """위경도를 기상청 격자 좌표(nx, ny)로 변환"""
+    import math
+
+    RE = 6371.00877
+    GRID = 5.0
+    SLAT1 = 30.0
+    SLAT2 = 60.0
+    OLON = 126.0
+    OLAT = 38.0
+    XO = 43
+    YO = 136
+    DEGRAD = math.pi / 180.0
+
+    re = RE / GRID
+    slat1 = SLAT1 * DEGRAD
+    slat2 = SLAT2 * DEGRAD
+    olon = OLON * DEGRAD
+    olat = OLAT * DEGRAD
+
+    sn = math.tan(math.pi * 0.25 + slat2 * 0.5) / math.tan(math.pi * 0.25 + slat1 * 0.5)
+    sn = math.log(math.cos(slat1) / math.cos(slat2)) / math.log(sn)
+    sf = math.tan(math.pi * 0.25 + slat1 * 0.5)
+    sf = math.pow(sf, sn) * math.cos(slat1) / sn
+    ro = math.tan(math.pi * 0.25 + olat * 0.5)
+    ro = re * sf / math.pow(ro, sn)
+
+    ra = math.tan(math.pi * 0.25 + lat * DEGRAD * 0.5)
+    ra = re * sf / math.pow(ra, sn)
+    theta = lon * DEGRAD - olon
+    if theta > math.pi: theta -= 2.0 * math.pi
+    if theta < -math.pi: theta += 2.0 * math.pi
+    theta *= sn
+
+    x = ra * math.sin(theta) + XO
+    y = ro - ra * math.cos(theta) + YO
+    return int(x + 1.5), int(y + 1.5)
+
+
 class DataCollector:
   def __init__(self):
     self.airkorea_base_url = "http://apis.data.go.kr/B552584/ArpltnInforInqireSvc"
     self.weather_base_url = "http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0"
 
   def get_air_quality_data(self):
+    """airkorea에서 미세먼지 데이터 받아오기기"""
     air_quality_data = []
     
     try:
@@ -67,3 +107,18 @@ class DataCollector:
     }).reset_index()
 
     return grouped
+  
+  def get_weather_data(self):
+    """기상청 단기예보 API를 통해 날씨 데이터 수집"""
+    weather_data = []
+    now = datetime.now()
+    base_date = now.strftime('%Y%m%d')
+    # 기상청 실황 API는 10분 단위로 데이터 제공 → 가장 가까운 시각으로 내림 처리 (17 -> 10)
+    minute = now.minute
+    base_minute = (minute//10)*10
+    base_time = now.replace(minute=base_minute, second=0, microsecond=0).strftime('%H%M')
+
+    # lat: 위도, lon: 경도
+    for dist, (lat, lon) in config.DISTRICT_COORDINATES.items():
+      # 기상청은 위경도 안 쓰고 이상한 격자 씀.
+      nx, ny = latlon_to_xy(lat, lon)
