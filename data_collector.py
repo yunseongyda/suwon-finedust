@@ -43,154 +43,143 @@ def latlon_to_xy(lat, lon):
 
 
 class DataCollector:
-  def __init__(self):
-    self.airkorea_base_url = "http://apis.data.go.kr/B552584/ArpltnInforInqireSvc"
-    self.weather_base_url = "http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0"
+    def __init__(self):
+        self.airkorea_base_url = "http://apis.data.go.kr/B552584/ArpltnInforInqireSvc"
+        self.weather_base_url = "http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0"
 
-  def get_air_quality_data(self):
-    """airkorea에서 미세먼지 데이터 받아오기기"""
-    air_quality_data = []
-    
-    try:
-      url = f"{self.airkorea_base_url}/getCtprvnRltmMesureDnsty"
-      params = {
-        'serviceKey' : config.AIRKOREA_API_KEY,
-        'returnType' : 'json',
-        'numOfRows' : '100',
-        'pageNo' : '1',
-        'sidoName' : '경기',
-        'ver' : '1.0'
-      }
+    def get_air_quality_data(self):
+        """airkorea에서 미세먼지 데이터 받아오기기"""
+        air_quality_data = []
 
-      res = requests.get(url, params=params)
-      data = res.json()
+        try:
+            url = f"{self.airkorea_base_url}/getCtprvnRltmMesureDnsty"
+            params = {
+                'serviceKey': config.AIRKOREA_API_KEY,
+                'returnType': 'json',
+                'numOfRows': '100',
+                'pageNo': '1',
+                'sidoName': '경기',
+                'ver': '1.0'
+            }
 
-      # 예외처리
-      if 'response' in data and 'body' in data['response']:
-        items = data['response']['body']['items']
+            res = requests.get(url, params=params)
+            data = res.json()
 
-        # #측정소 위치 확인
-        # for item in items:
-        #   print(item['stationName'])  
+            if 'response' in data and 'body' in data['response']:
+                items = data['response']['body']['items']
 
-        # 수원시 측정소 매핑
-        station_mapping = {
-          '장안구' : ['정자동', '천천동'],
-          '권선구' : ['호매실', '고색동'],
-          '팔달구' : ['인계동', '신풍동', '경수대로(동수원)'],
-          '영통구' : ['광교동', '영통동']
-        }
-     
-        # 필요한 데이터만 추출
-        for district, stations in station_mapping.items():
-          district_items = [item for item in items if item['stationName'] in stations]
-          
-          for item in district_items:
-            air_quality_data.append({
-              'district' : district,
-              'station' : item['stationName'],
-              'timestamp' : item['dataTime'],
-              'pm10' : float(item['pm10Value']) if item['pm10Value'] not in ['', None] else None,
-              'pm25' : float(item['pm25Value']) if item['pm25Value'] not in ['', None] else None
-            })
+                station_mapping = {
+                    '장안구': ['정자동', '천천동'],
+                    '권선구': ['호매실', '고색동'],
+                    '팔달구': ['인계동', '신풍동', '경수대로(동수원)'],
+                    '영통구': ['광교동', '영통동']
+                }
 
-    except Exception as e:
-      print("데이터 수집 실패")
-      print("[ERROR]: ",e)
+                for district, stations in station_mapping.items():
+                    district_items = [item for item in items if item['stationName'] in stations]
 
-    df = pd.DataFrame(air_quality_data)
-    df['timestamp'] = pd.to_datetime(df['timestamp']).dt.floor('H')
+                    for item in district_items:
+                        air_quality_data.append({
+                            'district': district,
+                            'station': item['stationName'],
+                            'timestamp': item['dataTime'],
+                            'pm10': float(item['pm10Value']) if item['pm10Value'] not in ['', None] else None,
+                            'pm25': float(item['pm25Value']) if item['pm25Value'] not in ['', None] else None
+                        })
 
-    grouped = df.groupby(['district', 'timestamp']).agg({
-      'pm10' : 'mean',
-      'pm25' : 'mean'
-    }).reset_index()
+        except Exception as e:
+            print("데이터 수집 실패")
+            print("[ERROR]: ", e)
 
-    print("\n[DEBUG] Final Air DataFrame: ")
-    print(grouped)
+        df = pd.DataFrame(air_quality_data)
+        df['timestamp'] = pd.to_datetime(df['timestamp']).dt.floor('H')
 
-    return grouped
-  
-  def get_weather_data(self, air_timestamp=None):
-    """기상청 단기예보 API를 통해 날씨 데이터 수집"""
-    weather_data = []
-    now = datetime.now()
+        grouped = df.groupby(['district', 'timestamp']).agg({
+            'pm10': 'mean',
+            'pm25': 'mean'
+        }).reset_index()
 
-    if air_timestamp and (now - air_timestamp) > timedelta(minutes=30):
-      print('[INFO] 기상청 시간 보정: {now} -> {air_timestamp}')
-      now = air_timestamp
+        print("\n[DEBUG] Final Air DataFrame: ")
+        print(grouped)
 
-    base_date = now.strftime('%Y%m%d')
-    # 기상청 실황 API는 10분 단위로 데이터 제공 → 가장 가까운 시각으로 내림 처리 (17 -> 10)
-    minute = now.minute
-    base_minute = (minute//10)*10
-    base_time = now.replace(minute=base_minute, second=0, microsecond=0).strftime('%H%M')
+        return grouped
 
-    # lat: 위도, lon: 경도
-    for dist, (lat, lon) in config.DISTRICT_COORDINATES.items():
-      try:
-        # 기상청은 위경도 안 쓰고 이상한 격자 씀.
-        nx, ny = latlon_to_xy(lat, lon)
+    def get_weather_data(self, air_timestamp=None):
+        """기상청 단기예보 API를 통해 날씨 데이터 수집"""
+        weather_data = []
+        now = datetime.now()
 
-        url = f"{self.weather_base_url}/getUltraSrtNcst"
-        params = {
-          'serviceKey' : config.WEATHER_API_KEY,
-          'numOfRows' : '100',
-          'pageNo' : '1',
-          'dataType' : 'JSON',
-          'base_date' : base_date,
-          'base_time' : base_time,
-          'nx' : nx,
-          'ny' : ny
-        }
+        if air_timestamp and (now - air_timestamp) > timedelta(minutes=30):
+            print('[INFO] 기상청 시간 보정: {now} -> {air_timestamp}')
+            now = air_timestamp
 
-        res = requests.get(url, params=params)
-        data = res.json()
-        
-        if 'response' in data and 'body' in data['response']:
-          items = data['response']['body']['items']['item']
-          info = {'district' : dist, 'timestamp' : now.strftime('%Y-%m-%d %H:%M')}
-        
-          # 기온(T1H), 습도(REH), 풍속(WSD) 뽑기
-          for item in items:
-            if item['category'] == 'T1H':     # 기온
-              info['temperature'] = float(item['obsrValue'])
-            elif item['category'] == 'REH':   # 습도
-              info['humidity'] = float(item['obsrValue'])
-            elif item['category'] == 'WSD':   # 풍속
-              info['wind_speed'] = float(item['obsrValue'])
+        base_date = now.strftime('%Y%m%d')
+        minute = now.minute
+        base_minute = (minute // 10) * 10
+        base_time = now.replace(minute=base_minute, second=0, microsecond=0).strftime('%H%M')
 
-          weather_data.append(info)
+        for dist, (lat, lon) in config.DISTRICT_COORDINATES.items():
+            try:
+                nx, ny = latlon_to_xy(lat, lon)
 
-      except Exception as e:
-        print(f"[ERROR] {dist} 데이터 수집 실패: {e}")
-      
-    df = pd.DataFrame(weather_data)
-    df['timestamp'] = pd.to_datetime(df['timestamp']).dt.floor('H')
-    print("\n[DEBUG] Final weather DataFrame: ")
-    print(df)
+                url = f"{self.weather_base_url}/getUltraSrtNcst"
+                params = {
+                    'serviceKey': config.WEATHER_API_KEY,
+                    'numOfRows': '100',
+                    'pageNo': '1',
+                    'dataType': 'JSON',
+                    'base_date': base_date,
+                    'base_time': base_time,
+                    'nx': nx,
+                    'ny': ny
+                }
 
-    return df
-  
-  def collect_and_merge_data(self):
-    """현재 시점의 미세먼지 + 날씨 데이터를 수집하고 병합"""
-    
-    print('[INFO] 미세먼지 데이터 수집중...')
-    air_df = self.get_air_quality_data()
-    air_timestamp = air_df['timestamp'].max()
-    
-    print('[INFO] 날씨 데이터 수집중...')
-    weather_df = self.get_weather_data(air_timestamp=air_timestamp)
+                res = requests.get(url, params=params)
+                data = res.json()
 
-    print('[INFO] 두 데이터 병합중...')
-    merged_df = pd.merge(
-      air_df,
-      weather_df,
-      on=['district', 'timestamp'],
-      how='inner'
-    )
+                if 'response' in data and 'body' in data['response']:
+                    items = data['response']['body']['items']['item']
+                    info = {'district': dist, 'timestamp': now.strftime('%Y-%m-%d %H:%M')}
 
-    print('[INFO] 병합된 데이터: ')
-    print(merged_df)
-    
-    return merged_df
+                    for item in items:
+                        if item['category'] == 'T1H':
+                            info['temperature'] = float(item['obsrValue'])
+                        elif item['category'] == 'REH':
+                            info['humidity'] = float(item['obsrValue'])
+                        elif item['category'] == 'WSD':
+                            info['wind_speed'] = float(item['obsrValue'])
+
+                    weather_data.append(info)
+
+            except Exception as e:
+                print(f"[ERROR] {dist} 데이터 수집 실패: {e}")
+
+        df = pd.DataFrame(weather_data)
+        df['timestamp'] = pd.to_datetime(df['timestamp']).dt.floor('H')
+        print("\n[DEBUG] Final weather DataFrame: ")
+        print(df)
+
+        return df
+
+    def collect_and_merge_data(self):
+        """현재 시점의 미세먼지 + 날씨 데이터를 수집하고 병합"""
+
+        print('[INFO] 미세먼지 데이터 수집중...')
+        air_df = self.get_air_quality_data()
+        air_timestamp = air_df['timestamp'].max()
+
+        print('[INFO] 날씨 데이터 수집중...')
+        weather_df = self.get_weather_data(air_timestamp=air_timestamp)
+
+        print('[INFO] 두 데이터 병합중...')
+        merged_df = pd.merge(
+            air_df,
+            weather_df,
+            on=['district', 'timestamp'],
+            how='inner'
+        )
+
+        print('[INFO] 병합된 데이터: ')
+        print(merged_df)
+
+        return merged_df
