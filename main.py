@@ -49,8 +49,10 @@ def update_data():
     # 기존 데이터와 병합
     historical_data = load_csv('historical_data.csv')
     if historical_data is not None:
-        # csv에서 데이터 불러올 때 문자열로 가져오는데 그래서 str vs datetime으로 중복 비교를 하기 때문에 중복 아님으로 처리됨
-        # 그래서 둘 다 datetime 타입으로 변환 후 중복 제거
+        """
+        csv에서 데이터 불러올 때 문자열로 가져오는데 그래서 str vs datetime으로 중복 비교를 하기 때문에 중복 아님으로 처리됨
+        그래서 둘 다 datetime 타입으로 변환 후 중복 제거
+        """
         historical_data['timestamp'] = pd.to_datetime(historical_data['timestamp'])
         current_data['timestamp'] = pd.to_datetime(current_data['timestamp']) 
         current_data = pd.concat([historical_data, current_data])
