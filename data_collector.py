@@ -63,7 +63,15 @@ class DataCollector:
             }
 
             res = requests.get(url, params=params)
-            data = res.json()
+            if res.status_code != 200:
+                print(f"[ERROR] 요청 실패: {res.status_code}")
+                return pd.DataFrame() # 빈 DF 반환
+            
+            try:
+                data = res.json()
+            except Exception as e:
+                print(f"[ERROR] JSON 디코딩 실패: {e}")
+                return pd.DataFrame()
 
             if 'response' in data and 'body' in data['response']:
                 items = data['response']['body']['items']

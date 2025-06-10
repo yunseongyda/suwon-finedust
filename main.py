@@ -1,4 +1,5 @@
 from data_collector import DataCollector
+from visualizer import MapVisualizer
 from datetime import datetime
 import pandas as pd
 import os
@@ -67,11 +68,23 @@ def update_data():
     print(f'{datetime.now()} 데이터 수집 완료')
     return current_data
 
+def update_visualization():
+    """지도 시각화"""
+    data = load_csv('historical_data.csv')
+
+    if data is not None and not data.empty:
+        vis = MapVisualizer()
+        vis.draw_map()
+    else:
+        print('[WARNING] csv파일 없음')
+
+
 def main():
     """메인 실행 함수"""
     
     create_directories()
     data = update_data()
+    update_visualization()
     
 
 if __name__ == "__main__":
