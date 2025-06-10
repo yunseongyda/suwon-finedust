@@ -8,7 +8,10 @@ def job():
     print("[SCHEDULED] 수집 완료")
 
 # 매시 20분마다 수집
-schedule.every().hour.at(":20").do(job)
+# schedule.every().hour.at(":20").do(job)
+
+# 테스트용
+schedule.every(1).minutes.do(job)
 
 print("[INFO] 자동 스케쥴러 활성화")
 

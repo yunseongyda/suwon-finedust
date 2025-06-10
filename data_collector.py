@@ -47,6 +47,14 @@ class DataCollector:
         self.airkorea_base_url = "http://apis.data.go.kr/B552584/ArpltnInforInqireSvc"
         self.weather_base_url = "http://apis.data.go.kr/1360000/VilageFcstInfoService_2.0"
 
+    def safe_float(val):
+        try:
+            print('성공적으로반환됨')
+            return float(val)
+        except:
+            print('엄')
+            return None
+
     def get_air_quality_data(self):
         """airkorea에서 미세먼지 데이터 받아오기기"""
         air_quality_data = []
@@ -93,11 +101,14 @@ class DataCollector:
                             'timestamp': item['dataTime'],
                             'pm10': float(item['pm10Value']) if item['pm10Value'] not in ['', None] else None,
                             'pm25': float(item['pm25Value']) if item['pm25Value'] not in ['', None] else None
+                            # 'pm10': self.safe_float(item['pm10Value']),
+                            # 'pm25': self.safe_float(item['pm25Value']),
                         })
+                    if not air_quality_data:
+                        print("[WARNING] 에어코리아 데이터 없음음")
 
         except Exception as e:
-            print("데이터 수집 실패")
-            print("[ERROR]: ", e)
+            print(f"[ERROR] 데이터 수집 실패: {e}")
 
         df = pd.DataFrame(air_quality_data)
         df['timestamp'] = pd.to_datetime(df['timestamp']).dt.floor('H')
