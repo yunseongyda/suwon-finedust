@@ -1,0 +1,5 @@
+# 에어코리아 API 키 (공공데이터포털에서 발급)
+AIRKOREA_API_KEY=W5AbhhAhc7xLdTE/rc8KX5eMUrLzejPB3+NiyMTwafm3xnUJkwE2UDjn89QaHfbJGO4GXIByLU5QaydkbyJQ7Q==
+
+# 기상청 API 키 (공공데이터포털에서 발급)
+WEATHER_API_KEY=W5AbhhAhc7xLdTE/rc8KX5eMUrLzejPB3+NiyMTwafm3xnUJkwE2UDjn89QaHfbJGO4GXIByLU5QaydkbyJQ7Q==
