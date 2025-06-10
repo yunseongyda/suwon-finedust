@@ -74,7 +74,7 @@ def update_visualization():
 
     if data is not None and not data.empty:
         vis = MapVisualizer()
-        vis.draw_map()
+        vis.create_map()
     else:
         print('[WARNING] csv파일 없음')
 

@@ -2,3 +2,4 @@ pandas
 requests
 dotenv
 folium
+scheduler
