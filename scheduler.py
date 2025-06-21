@@ -2,11 +2,32 @@ import sys
 import schedule
 import time
 import logging
+from logging.handlers import TimedRotatingFileHandler
 import os
 import atexit
+from datetime import datetime
 from main import update_data
 
+# logs 디렉토리 생성
 os.makedirs("logs", exist_ok=True)
+
+# 핸들러 생성: 자정마다 새 파일 생성, 백업 파일은 최대 7개
+handler = TimedRotatingFileHandler(
+    filename='logs/scheduler.log',
+    when='midnight',
+    interval=1,
+    backupCount=7,
+    encoding='utf-8'
+)
+
+# 로그 포맷 설정
+formatter = logging.Formatter('[%(asctime)s] %(levelname)s - %(message)s')
+handler.setFormatter(formatter)
+
+# 루트 로거 설정
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+logger.addHandler(handler)
 
 lock_file = 'scheduler.lock'
 
@@ -24,7 +45,7 @@ atexit.register(lambda: os.remove(lock_file))
 
 # 로그 설정
 logging.basicConfig(
-    filename='logs/scheduler.log',
+    filename=f"logs/{datetime.now().strftime('%Y-%m-%d')}_scheduler.log",
     level=logging.INFO,
     format='[%(asctime)s] %(levelname)s - %(message)s',
     encoding='utf-8'
