@@ -39,7 +39,6 @@ ENV/
 models/*.joblib
 maps/*.html
 !maps/.gitkeep
-data/*.csv
 !data/.gitkeep
 
 # Logs
