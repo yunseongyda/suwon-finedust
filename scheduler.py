@@ -53,15 +53,15 @@ logging.basicConfig(
 
 def job():
         
-    logging.info("미세먼지 데이터 수집 시작")
+    logging.info("데이터 수집 시작")
     try:
         update_data()
-        logging.info("미세먼지 데이터 수집 완료")
+        logging.info("데이터 수집 완료")
     except Exception as e:
-       logging.error(f"미세먼지 데이터 수집 중 에러 발생", exc_info=True) 
+       logging.error(f"데이터 수집 중 에러 발생", exc_info=True) 
 
-# 매시 20분마다 수집
-schedule.every().hour.at(":20").do(job)
+# 매시 55분마다 수집
+schedule.every().hour.at(":55").do(job)
 
 # 테스트용
 # schedule.every(1).minutes.do(job)
@@ -69,5 +69,8 @@ schedule.every().hour.at(":20").do(job)
 logging.info(f"{time.ctime()} -  자동 스케쥴러 활성화")
 
 while True:
-    schedule.run_pending()
-    time.sleep(60)
+    try:
+        schedule.run_pending()
+        time.sleep(60)
+    except Exception as e:
+        logging.critical("스케쥴러 루프에서 예기치 못한 에러 발생", exc_info=True)
