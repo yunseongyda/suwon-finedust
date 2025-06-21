@@ -1,6 +1,7 @@
 import requests
 import pandas as pd
 from datetime import datetime, timedelta
+import logging
 import config
 
 def latlon_to_xy(lat, lon):
@@ -84,11 +85,18 @@ class DataCollector:
                     '영통구': ['광교동', '영통동']
                 }
 
-                # print(items)
+                print(items)
+                station = set([item['stationName'] for item in items])
+                print("[DEBUG] 응답에 포함된 측정소 목록:")
+                print(station)
 
                 for district, stations in station_mapping.items():
                     district_items = [item for item in items if item['stationName'] in stations]
-
+                    
+                    print(f"[DEBUG] {district} 수집된 측정소 수: {len(district_items)}")
+                    if not district_items:
+                        print(f"[WARNING] {district} 구에 해당하는 측정소 데이터 없음")
+                    
                     for item in district_items:
                         air_quality_data.append({
                             'district': district,
@@ -98,13 +106,26 @@ class DataCollector:
                             'pm25': float(item['pm25Value']) if item['pm25Value'] not in INVALID_VALUES else None
                         })
                     if not air_quality_data:
-                        print("[WARNING] 에어코리아 데이터 없음음")
+                        print("[WARNING] 에어코리아 데이터 없음")
 
         except Exception as e:
             print(f"[ERROR] 데이터 수집 실패: {e}")
 
         df = pd.DataFrame(air_quality_data)
-        df['timestamp'] = pd.to_datetime(df['timestamp']).dt.floor('H')
+        if df.empty:
+            print("[WARNING] 에어코리아에서 받은 데이터가 없음")
+            message = "에어코리아에서 수원시 측정소 데이터가 수신되지 않음."
+            logging.warning(message)
+            return None
+        else:
+            # change '24:00' -> '00:00' and plus 1 day
+            df['timestamp'] = df['timestamp'].astype(str)
+            df['timestamp'] = df['timestamp'].apply(lambda x: (
+                x.replace("24:00", "00:00") if "24:00" in x else x
+            ))
+            df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
+            df['timestamp'] = df['timestamp'] + pd.to_timedelta(df['timestamp'].dt.hour == 0, unit='D')
+            df['timestamp'] = df['timestamp'].dt.floor('H')
 
         grouped = df.groupby(['district', 'timestamp']).agg({
             'pm10': 'mean',
@@ -178,6 +199,9 @@ class DataCollector:
 
         print('[INFO] 미세먼지 데이터 수집중...')
         air_df = self.get_air_quality_data()
+        if air_df is None:
+            logging.info("수집 중단됨 (미세먼지 데이터 없음)")
+            return None
         air_timestamp = air_df['timestamp'].max()
 
         print('[INFO] 날씨 데이터 수집중...')

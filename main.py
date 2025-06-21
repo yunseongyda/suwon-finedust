@@ -40,6 +40,9 @@ def update_data():
     
     collector = DataCollector()
     current_data = collector.collect_and_merge_data()
+    if current_data is None:
+        print("[ERROR] 데이터 수집 실패 (current_data 없음)")
+        return None
         
     # 소수점 2자리로 반올림
     float_cols = ['pm10','pm25','humidity','temperature','wind_speed']
@@ -84,6 +87,9 @@ def main():
     
     create_directories()
     data = update_data()
+    if data is None:
+        print("[ERROR] 데이터 수집 실패")
+        return None
     update_visualization()
     
 
