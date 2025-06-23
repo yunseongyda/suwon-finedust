@@ -85,7 +85,8 @@ class DataCollector:
                     '영통구': ['광교동', '영통동']
                 }
 
-                print(items)
+                # 디버깅용
+                # print(items)
                 station = set([item['stationName'] for item in items])
                 print("[DEBUG] 응답에 포함된 측정소 목록:")
                 print(station)
@@ -120,11 +121,12 @@ class DataCollector:
         else:
             # change '24:00' -> '00:00' and plus 1 day
             df['timestamp'] = df['timestamp'].astype(str)
-            df['timestamp'] = df['timestamp'].apply(lambda x: (
+            df['timestamp'] = df['timestamp'].apply(lambda x: (     # 24:00 -> 00:00
                 x.replace("24:00", "00:00") if "24:00" in x else x
             ))
             df['timestamp'] = pd.to_datetime(df['timestamp'], errors='coerce')
-            df['timestamp'] = df['timestamp'] + pd.to_timedelta(df['timestamp'].dt.hour == 0, unit='D')
+            # 자정인 부분만 +1
+            df['timestamp'] = df['timestamp'] + pd.to_timedelta((df['timestamp'].dt.hour == 0).astype(int), unit='D')
             df['timestamp'] = df['timestamp'].dt.floor('H')
 
         grouped = df.groupby(['district', 'timestamp']).agg({
