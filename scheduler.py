@@ -20,6 +20,13 @@ handler = TimedRotatingFileHandler(
     encoding='utf-8'
 )
 
+def rename_to_date(default_name):
+    base, ext = os.path.splitext(default_name)
+    date_part = base.split('.')[-1]
+    return f"logs/{date_part}.log"
+
+handler.name = rename_to_date
+
 # 로그 포맷 설정
 formatter = logging.Formatter('[%(asctime)s] %(levelname)s - %(message)s')
 handler.setFormatter(formatter)
