@@ -43,4 +43,5 @@ maps/*.html
 *.lock
 
 # Logs
+logs/*
 *.log 
